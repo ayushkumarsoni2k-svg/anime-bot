@@ -4,6 +4,11 @@ import random
 import asyncio
 import requests
 import urllib.parse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 import edge_tts
 from PIL import Image
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
@@ -92,7 +97,6 @@ Return ONLY valid JSON format matching this exact structure, with no extra text 
             if res.status_code == 200:
                 result_json = res.json()
                 candidate_text = result_json['candidates'][0]['content']['parts'][0]['text']
-                # Clean markdown json wrappers if present
                 clean_text = candidate_text.replace("```json", "").replace("```", "").strip()
                 script_data = json.loads(clean_text)
                 print("✅ Gemini API से स्क्रिप्ट सफलतापूर्वक बन गई!")
@@ -151,10 +155,10 @@ async def build_video(script):
         except Exception as e:
             print(f"Image download error for scene {i}: {e}")
             
-        # Agar image download fail ho jaye to direct backup image use karo
+        # Agar image download fail ho jaye to dark character with microphone backup image use karo
         if not image_saved:
-            print(f"⚠️ Backup image use ki ja rahi hai scene {i} ke liye...")
-            backup_url = f"https://image.pollinations.ai/prompt/dark%2520anime%2520character%2520standing%2520moody%2520lighting%2520masterpiece?width=720&height=1280&seed={seed_num}&nologo=true"
+            print(f"⚠️ Backup dark anime character image use ki ja rahi hai scene {i} ke liye...")
+            backup_url = f"https://image.pollinations.ai/prompt/dark%20anime%20character%20standing%20with%20a%20microphone,%20moody%20lighting,%20masterpiece%208k?width=720&height=1280&seed={seed_num}&nologo=true"
             res = requests.get(backup_url, timeout=20)
             with open(img_file, "wb") as f:
                 f.write(res.content)
@@ -171,7 +175,7 @@ async def build_video(script):
         clips.append(video_scene)
         
     # 4. Join all scenes into final video
-    print("🔄 सभी सीन्स को जोड़ा जा रहा है...")
+    print("🔄 सभी सीन्स को जोड़ा जा रहा है...")
     final_video = concatenate_videoclips(clips, method="compose")
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
     
@@ -180,13 +184,57 @@ async def build_video(script):
         
     print("✅ शानदार 4-सीन वाला एनिमी शॉर्ट वीडियो सफलतापूर्वक बन गया!")
 
+def send_email_notification():
+    """Step 5: Send the generated video directly to your Gmail using MY_GMAIL and GMAIL_APP_PASS"""
+    try:
+        sender_email = os.environ.get("MY_GMAIL")
+        sender_password = os.environ.get("GMAIL_APP_PASS")
+        
+        if not sender_email or not sender_password:
+            print("⚠️ MY_GMAIL या GMAIL_APP_PASS GitHub Secrets में नहीं मिले, ईमेल भेजना छोड़ दिया जा रहा है।")
+            return
+
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = sender_email
+        
+        title = "Trending Anime Short"
+        if os.path.exists("Video_Title.txt"):
+            with open("Video_Title.txt", "r", encoding="utf-8") as f:
+                title = f.read().strip()
+                
+        msg['Subject'] = f"🎬 New Anime Short Ready: {title}"
+
+        body = f"नमस्ते!\n\nआपका ऑटोमैटिक एनिमी शॉर्ट वीडियो सफलतापूर्वक तैयार हो गया है।\nशीर्षक (Title): {title}\n\nवीडियो फाइल इस ईमेल के साथ अटैच है।"
+        msg.attach(MIMEText(body, 'plain'))
+
+        filename = "Ready_Anime_Short.mp4"
+        if os.path.exists(filename):
+            with open(filename, "rb") as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f"attachment; filename= {filename}")
+            msg.attach(part)
+            
+        print("📧 जीमेल पर वीडियो भेजा जा रहा है...")
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, sender_email, msg.as_string())
+        server.quit()
+        print("✅ वीडियो सफलतापूर्वक आपके जीमेल पर भेज दिया गया है!")
+    except Exception as e:
+        print(f"❌ ईमेल भेजने में एरर आया: {e}")
+
 async def main():
     print("🚀 बॉट शुरू हो रहा है...")
     live_trends = get_live_anime_trends()
     script = generate_script_with_gemini(live_trends)
     print(f"📌 चयनित वीडियो टाइटल: {script.get('title')}")
     await build_video(script)
-    print("🎉 प्रक्रिया पूरी हुई!")
+    send_email_notification()
+    print("🎉 सारी प्रक्रिया सफलतापूर्वक पूरी हुई!")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -6,47 +6,46 @@ import os, json, random, asyncio, requests, urllib.parse, xml.etree.ElementTree 
 import edge_tts
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 
-def fetch_live_trending_anime():
-    live_trends = []
-    rss_url = "https://news.google.com/rss/search?q=trending+anime+OR+Solo+Leveling+OR+Re+Zero+OR+Jujutsu+Kaisen&hl=en-IN&gl=IN&ceid=IN:en"
-    try:
-        res = requests.get(rss_url, timeout=10)
-        root = ET.fromstring(res.text)
-        for item in root.findall('.//item')[:12]:
-            live_trends.append(item.find('title').text)
-    except Exception as e:
-        print("RSS info:", e)
-
-    try:
-        jikan = requests.get("https://api.jikan.moe/v4/top/anime?filter=airing&limit=10", timeout=10).json()
-        for a in jikan.get("data", []):
-            live_trends.append(f"{a['title']}: {a.get('synopsis', '')[:120]}")
-    except Exception as e:
-        print("Jikan info:", e)
-
-    random.shuffle(live_trends)
-    return "\n".join(live_trends[:10])
-
 def get_unlimited_script():
-    api_key = os.environ["GEMINI_API_KEY"].strip()
-    live_data = fetch_live_trending_anime()
-
-    prompt = f"""You are a viral Hindi Anime YouTube Shorts creator.
-Live trending anime right now:
-{live_data}
-
-Pick ONE super interesting anime topic from above and write a 5-scene dramatic Hindi script.
-Return ONLY valid JSON:
-{{
-  "title": "Viral Hindi Anime Title 😱🔥 #shorts #anime #hindianime",
-  "scenes": [
-    {{
-      "narration": "गहरी और दमदार हिंदी नैरेटर लाइन (12-15 words)",
-      "image_prompt": "masterpiece 8k anime key visual, dark cinematic lighting, vertical 9:16, detailed action scene"
-    }}
-  ]
-}}
-Exactly 5 scenes."""
+    import requests
+    import random
+    
+    trending_topic = "Top Airing Anime"
+    scenes = []
+    
+    # Jikan API से असली लाइव ट्रेंडिंग एनिमी खोजने की सुरक्षित कोशिश
+    for attempt in range(3):
+        try:
+            jikan_url = "https://api.jikan.moe/v4/top/anime?filter=airing&limit=10"
+            response = requests.get(jikan_url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                anime_list = data.get("data", [])
+                if anime_list:
+                    selected_anime = random.choice(anime_list)
+                    anime_title = selected_anime.get("title", "Trending Anime")
+                    synopsis = selected_anime.get("synopsis", "An incredible journey begins.")[:120]
+                    trending_topic = anime_title
+                    
+                    scenes = [
+                        {"narration": f"साल 2026 में दुनिया भर में धूम मचा रहा है यह शानदार एनीमी, जिसका नाम है {anime_title}!", "image_prompt": f"masterpiece 8k anime key visual of {anime_title}, epic scene"},
+                        {"narration": f"इसकी कहानी और प्लॉट के बारे में जानकर आप हैरान रह जाएंगे: {synopsis}...", "image_prompt": f"dramatic anime action scene, vibrant colors, cinematic lighting"},
+                        {"narration": f"क्या आपने इस बेहतरीन एनीमी को देखा है? हमें कमेंट में जरूर बताएं!", "image_prompt": f"epic anime hero looking at the sky, beautiful sunset, highly detailed"}
+                    ]
+                    print(f"✅ Jikan API से लाइव ट्रेंड मिल गया: {anime_title}")
+                    break
+        except Exception as e:
+            print(f"Jikan API attempt {attempt+1} failed: {e}")
+            
+    # अगर जेकन एपीआई से डेटा न मिले, तो डिफ़ॉल्ट एनिमी सीन्स ले लेगा ताकि बॉट रुके नहीं
+    if not scenes:
+        scenes = [
+            {"narration": "आज के सबसे बेहतरीन और लोकप्रिय एनिमी मोमेंट में आपका स्वागत है।", "image_prompt": "epic anime masterpiece wallpaper, cinematic"},
+            {"narration": "इस दृश्य ने सभी फैंस के दिलों पर राज कर लिया है!", "image_prompt": "dramatic anime battle action, vibrant"},
+            {"narration": "ऐसी ही और दिलचस्प एनिमी अपडेट्स के लिए जुड़े रहें।", "image_prompt": "cool anime hero posing, futuristic background"}
+        ]
+        
+    return {"title": trending_topic, "scenes": scenes}
 
     models_res = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}").json()
     valid_models = [

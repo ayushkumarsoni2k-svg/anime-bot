@@ -2,9 +2,7 @@ name: Auto Anime Video Factory
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # सुबह 6:00 बजे
-    - cron: '30 7 * * *'   # दोपहर 1:00 बजे
-    - cron: '30 13 * * *'  # शाम 7:00 बजे
+    - cron: '0 5-22 * * *'  # सुबह 5 बजे से रात 10 बजे तक हर घंटे
   workflow_dispatch:
 
 jobs:
@@ -22,6 +20,8 @@ jobs:
       - name: Make Trending Anime Video
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MY_GMAIL: ${{ secrets.MY_GMAIL }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
         run: python bot.py
       - name: Save Ready MP4 Video
         uses: actions/upload-artifact@v4

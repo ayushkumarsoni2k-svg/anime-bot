@@ -55,35 +55,34 @@ def generate_script_with_gemini(live_trends):
         
     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
-    prompt = f"""
-You are a viral Hindi/Hinglish Anime YouTube Shorts creator. 
-Here are the current live trending anime topics:
-{live_trends}
-
-Pick ONE super interesting anime topic from above and write a strict 4-scene dramatic Hindi/Hinglish script.
-Return ONLY valid JSON format matching this exact structure, with no extra text or markdown blocks:
-{{
-  "title": "Catchy Anime Title ⚡ #shorts #anime",
-  "scenes": [
-    {{
-      "narration": "पहली गहरी और दमदार हिंदी नरेटर लाइन (12-15 शब्द).",
-      "image_prompt": "masterpiece 8k anime key visual, dramatic epic scene, cinematic lighting"
-    }},
-    {{
-      "narration": "दूसरी रोमांचक हिंदी नरेटर लाइन (12-15 शब्द).",
-      "image_prompt": "dramatic anime battle action, vibrant colors, highly detailed"
-    }},
-    {{
-      "narration": "तीसरी सस्पेंस वाली हिंदी नरेटर लाइन (12-15 शब्द).",
-      "image_prompt": "mysterious dark anime character standing, moody atmosphere"
-    }},
-    {{
-      "narration": "चौथी और आखिरी निष्कर्ष वाली हिंदी नरेटर लाइन (12-15 शब्द).",
-      "image_prompt": "epic anime hero looking at horizon, beautiful sunset"
-    }}
-  ]
-}
-"""
+    prompt = (
+        "You are a viral Hindi/Hinglish Anime YouTube Shorts creator.\n"
+        "Here are the current live trending anime topics:\n"
+        f"{live_trends}\n\n"
+        "Pick ONE super interesting anime topic from above and write a strict 4-scene dramatic Hindi/Hinglish script.\n"
+        "Return ONLY valid JSON format matching this exact structure, with no extra text or markdown blocks:\n"
+        "{\n"
+        '  "title": "Catchy Anime Title ⚡ #shorts #anime",\n'
+        '  "scenes": [\n'
+        '    {\n'
+        '      "narration": "पहली गहरी और दमदार हिंदी नरेटर लाइन (12-15 शब्द).",\n'
+        '      "image_prompt": "masterpiece 8k anime key visual, dramatic epic scene, cinematic lighting"\n'
+        '    },\n'
+        '    {\n'
+        '      "narration": "दूसरी रोमांचक हिंदी नरेटर लाइन (12-15 शब्द).",\n'
+        '      "image_prompt": "dramatic anime battle action, vibrant colors, highly detailed"\n'
+        '    },\n'
+        '    {\n'
+        '      "narration": "तीसरी सस्पेंस वाली हिंदी नरेटर लाइन (12-15 शब्द).",\n'
+        '      "image_prompt": "mysterious dark anime character standing, moody atmosphere"\n'
+        '    },\n'
+        '    {\n'
+        '      "narration": "चौथी और आखिरी निष्कर्ष वाली हिंदी नरेटर लाइन (12-15 शब्द).",\n'
+        '      "image_prompt": "epic anime hero looking at horizon, beautiful sunset"\n'
+        '    }\n'
+        '  ]\n'
+        "}"
+    )
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}]

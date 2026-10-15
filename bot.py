@@ -142,27 +142,27 @@ async def main():
     script = get_unlimited_script()
     await build_video(script)
     print("✅ वीडियो सफलतापूर्वक बन गया! Title:", script["title"])
-import os
-import smtplib
-from email.message import EmailMessage
+    import os
+    import smtplib
+    from email.message import EmailMessage
 
-msg = EmailMessage()
-msg["Subject"] = f"New Anime Short: {script['title']}"
-msg["From"] = os.environ["MY_GMAIL"]
-msg["To"] = os.environ["MY_GMAIL"]
-msg.set_content("यहाँ तुम्हारा नया एनिमी शॉर्ट वीडियो अटैच है। इसे डाउनलोड करके अपलोड कर लो!")
+    msg = EmailMessage()
+    msg["Subject"] = f"New Anime Short: {script['title']}"
+    msg["From"] = os.environ["MY_GMAIL"]
+    msg["To"] = os.environ["MY_GMAIL"]
+    msg.set_content("यहाँ तुम्हारा नया एनिमी शॉर्ट वीडियो अटैच है। इसे डाउनलोड करके अपलोड कर लो!")
 
-with open("Ready_Anime_Short.mp4", "rb") as f:
-    file_data = f.read()
-    file_name = f"Ready_Anime_Short.mp4"
+    with open("Ready_Anime_Short.mp4", "rb") as f:
+        file_data = f.read()
+        file_name = "Ready_Anime_Short.mp4"
 
-msg.add_attachment(file_data, maintype="video", subtype="mp4", filename=file_name)
+    msg.add_attachment(file_data, maintype="video", subtype="mp4", filename=file_name)
 
-with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-    smtp.login(os.environ["MY_GMAIL"], os.environ["GMAIL_APP_PASS"])
-    smtp.send_message(msg)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(os.environ["MY_GMAIL"], os.environ["GMAIL_APP_PASS"])
+        smtp.send_message(msg)
 
-print("Email sent successfully with the video!")
+    print("Email sent successfully with the video!")
 
 if __name__ == "__main__":
     asyncio.run(main())

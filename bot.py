@@ -4,13 +4,14 @@ import random
 import asyncio
 import requests
 import urllib.parse
+import xml.etree.ElementTree as ET
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import edge_tts
-from PIL import Image
+from PIL import Image, ImageDraw
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 
 # PIL Antialias Fix for MoviePy compatibility
@@ -18,12 +19,15 @@ if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 def get_live_anime_trends():
-    """Step 1: Fetch live trending anime from Jikan API with fallback"""
+    """Step 1: Fetch live trending anime from Jikan API with User-Agent, with Google News RSS & Static fallback"""
     anime_data_list = []
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    # Try Jikan API first
     for attempt in range(3):
         try:
             url = "https://api.jikan.moe/v4/top/anime?filter=airing&limit=15"
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, headers=headers, timeout=12)
             if response.status_code == 200:
                 data = response.json()
                 items = data.get("data", [])
@@ -32,17 +36,38 @@ def get_live_anime_trends():
                     synopsis = item.get("synopsis", "An epic journey.")[:150]
                     anime_data_list.append(f"Anime: {title} | Details: {synopsis}")
                 if anime_data_list:
-                    print("✅ Jikan API से लाइव ट्रेंड्स मिल गए!")
+                    print("✅ Jikan API से लाइव ट्रेंड्स सफलतापूर्वक मिल गए!")
                     break
         except Exception as e:
             print(f"Jikan API attempt {attempt+1} failed: {e}")
+            await_sec = 2
+            import time
+            time.sleep(await_sec)
             
+    # If Jikan fails, fetch live trends from Google News RSS for Anime
     if not anime_data_list:
-        print("⚠️ Jikan API कनेक्ट नहीं हुआ, डिफ़ॉल्ट ट्रेंड्स का उपयोग हो रहा है।")
+        print("⚠️ Jikan API कनेक्ट नहीं हुआ, Google News RSS से लाइव ट्रेंड्स खोजे जा रहे हैं...")
+        try:
+            rss_url = "https://news.google.com/rss/search?q=trending+anime+2026&hl=en-IN&gl=IN&ceid=IN:en"
+            res = requests.get(rss_url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                root = ET.fromstring(res.text)
+                for item in root.findall('.//item')[:10]:
+                    title_elem = item.find('title')
+                    if title_elem is not None and title_elem.text:
+                        anime_data_list.append(f"Anime News/Trend: {title_elem.text}")
+                if anime_data_list:
+                    print("✅ Google News RSS से लाइव ट्रेंड्स मिल गए!")
+        except Exception as e:
+            print(f"Google News RSS failed: {e}")
+
+    # Ultimate fallback if everything else fails
+    if not anime_data_list:
+        print("⚠️ सभी ऑनलाइन सोर्सेज व्यस्त हैं, सुरक्षित फॉलबैक ट्रेंड का उपयोग हो रहा है।")
         anime_data_list = [
-            "Anime: Solo Leveling | Details: Hunters and monsters in a dark fantasy world.",
-            "Anime: Demon Slayer | Details: Tanjiro's epic battle against demons.",
-            "Anime: Jujutsu Kaisen | Details: Sorcerers fighting cursed spirits in modern Tokyo."
+            "Anime: Solo Leveling Season 2 | Details: Jinwoo's shadow army rises in epic battles.",
+            "Anime: Jujutsu Kaisen | Details: Sorcerers fighting curses in intense action sequences.",
+            "Anime: Demon Slayer | Details: Hashira training and fierce battles against upper moons."
         ]
         
     return "\n".join(anime_data_list)
@@ -120,7 +145,7 @@ async def make_deep_voice(text, filename):
     await communicate.save(filename)
 
 async def build_video(script):
-    """Step 4: Download images, attach voiceovers, add zoom effect, and concatenate scenes"""
+    """Step 4: Download images with User-Agent & fail-safe local PIL image generator, add zoom effect, and concatenate scenes"""
     clips = []
     scenes = script.get("scenes", [])
     
@@ -137,14 +162,15 @@ async def build_video(script):
         await make_deep_voice(narration_text, aud_file)
         audio_clip = AudioFileClip(aud_file)
         
-        # 2. Pollinations AI se image download karo with safe fallback
+        # 2. Pollinations AI image download with User-Agent & foolproof local fallback
         image_saved = False
         try:
             encoded_prompt = urllib.parse.quote(img_prompt + ", high quality anime wallpaper")
             seed_num = random.randint(100, 99999)
             img_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=720&height=1280&seed={seed_num}&nologo=true"
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
             
-            res = requests.get(img_url, timeout=20)
+            res = requests.get(img_url, headers=headers, timeout=20)
             if res.status_code == 200 and len(res.content) > 1000:
                 with open(img_file, "wb") as f:
                     f.write(res.content)
@@ -154,13 +180,14 @@ async def build_video(script):
         except Exception as e:
             print(f"Image download error for scene {i}: {e}")
             
-        # Agar image download fail ho jaye to dark character with microphone backup image use karo
+        # Fail-safe local PIL image generator (Never fails, creates a professional dark anime poster)
         if not image_saved:
-            print(f"⚠️ Backup dark anime character image use ki ja rahi hai scene {i} ke liye...")
-            backup_url = f"https://image.pollinations.ai/prompt/dark%20anime%20character%20standing%20with%20a%20microphone,%20moody%20lighting,%20masterpiece%208k?width=720&height=1280&seed={seed_num}&nologo=true"
-            res = requests.get(backup_url, timeout=20)
-            with open(img_file, "wb") as f:
-                f.write(res.content)
+            print(f"⚠️ Local fail-safe dark anime image generate ki ja rahi hai scene {i} ke liye...")
+            img = Image.new("RGB", (720, 1280), color=(12, 12, 25))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([30, 30, 690, 1250], outline=(100, 100, 220), width=4)
+            draw.text((60, 600), "ANIME SHORTS BOT", fill=(220, 220, 255))
+            img.save(img_file)
                 
         # 3. Process image and add smooth zoom effect
         dur = audio_clip.duration + 0.3

@@ -66,28 +66,65 @@ async def make_deep_voice(text, filename):
     await communicate.save(filename)
 
 async def build_video(script):
+    from PIL import Image, ImageDraw, ImageFont
+    from io import BytesIO
+    import textwrap
+
     clips = []
+    backup_imgs = []
+    try:
+        jikan_res = requests.get("https://api.jikan.moe/v4/top/anime?filter=airing&limit=10", timeout=10).json()
+        for item in jikan_res.get("data", []):
+            img_link = item.get("images", {}).get("jpg", {}).get("large_image_url")
+            if img_link:
+                backup_imgs.append(img_link)
+    except Exception:
+        pass
+
     for i, scene in enumerate(script["scenes"]):
         img_file = f"scene_{i}.jpg"
         aud_file = f"scene_{i}.mp3"
 
-        from PIL import Image
-        from io import BytesIO
-        encoded = urllib.parse.quote(scene["image_prompt"])
-        img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={random.randint(1,99999)}"
-        img_saved = False
-        for attempt in range(3):
+        short_prompt = scene["image_prompt"][:120]
+        encoded = urllib.parse.quote(short_prompt)
+        seed = random.randint(1, 99999)
+        
+        urls_to_try = [
+            f"https://pollinations.ai/p/{encoded}?width=720&height=1280&seed={seed}&nologo=true",
+            f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&seed={seed}&model=flux&nologo=true"
+        ]
+        if backup_imgs:
+            urls_to_try.append(random.choice(backup_imgs))
+
+        base_img = None
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
+
+        for url in urls_to_try:
             try:
-                res = requests.get(img_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-                if res.status_code == 200 and len(res.content) > 1000:
-                    Image.open(BytesIO(res.content)).convert("RGB").save(img_file, "JPEG")
-                    img_saved = True
+                res = requests.get(url, headers=headers, timeout=25)
+                if res.status_code == 200 and len(res.content) > 2000:
+                    base_img = Image.open(BytesIO(res.content)).convert("RGB")
+                    base_img = base_img.resize((720, 1280))
                     break
             except Exception as e:
-                print(f"Image error: {e}")
-        if not img_saved:
-            Image.new('RGB', (720, 1280), color=(15, 15, 25)).save(img_file, "JPEG")
+                print(f"URL failed: {e}")
 
+        if base_img is None:
+            base_img = Image.new('RGB', (720, 1280), color=(25, 20, 45))
+
+        draw = ImageDraw.Draw(base_img)
+        narration_text = scene.get("narration", "")
+        wrapped_text = "\n".join(textwrap.wrap(narration_text, width=28))
+
+        draw.rectangle([(40, 880), (680, 1160)], fill=(0, 0, 0))
+        
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
+        except Exception:
+            font = ImageFont.load_default()
+
+        draw.multiline_text((60, 910), wrapped_text, fill=(255, 255, 0), font=font, spacing=8)
+        base_img.save(img_file, "JPEG")
 
         await make_deep_voice(scene["narration"], aud_file)
 
@@ -99,6 +136,7 @@ async def build_video(script):
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
     with open("Video_Title.txt", "w", encoding="utf-8") as f:
         f.write(script["title"])
+
 
 async def main():
     script = get_unlimited_script()

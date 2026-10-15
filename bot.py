@@ -71,10 +71,23 @@ async def build_video(script):
         img_file = f"scene_{i}.jpg"
         aud_file = f"scene_{i}.mp3"
 
+        from PIL import Image
+        from io import BytesIO
         encoded = urllib.parse.quote(scene["image_prompt"])
-        img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={random.randint(1,999999)}"
-        with open(img_file, "wb") as f:
-            f.write(requests.get(img_url).content)
+        img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={random.randint(1,99999)}"
+        img_saved = False
+        for attempt in range(3):
+            try:
+                res = requests.get(img_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+                if res.status_code == 200 and len(res.content) > 1000:
+                    Image.open(BytesIO(res.content)).convert("RGB").save(img_file, "JPEG")
+                    img_saved = True
+                    break
+            except Exception as e:
+                print(f"Image error: {e}")
+        if not img_saved:
+            Image.new('RGB', (720, 1280), color=(15, 15, 25)).save(img_file, "JPEG")
+
 
         await make_deep_voice(scene["narration"], aud_file)
 

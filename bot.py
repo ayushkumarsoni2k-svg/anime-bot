@@ -66,76 +66,42 @@ async def make_deep_voice(text, filename):
     await communicate.save(filename)
 
 async def build_video(script):
-    from PIL import Image, ImageDraw, ImageFont
-    from io import BytesIO
-    import textwrap
-
-    clips = []
-    backup_imgs = []
+    audio_file = "voiceover.mp3"
+    await make_deep_voice(script["narration"], audio_file)
+    
+    audio_clip = AudioFileClip(audio_file)
+    total_duration = audio_clip.duration
+    
+    title = script.get("title", "anime action")
+    clean_prompt = f"High quality anime style, cinematic lighting, vibrant colors, epic scene representing {title}"
+    
+    img_file = "main_anime_image.jpg"
+    
     try:
-        jikan_res = requests.get("https://api.jikan.moe/v4/top/anime?filter=airing&limit=10", timeout=10).json()
-        for item in jikan_res.get("data", []):
-            img_link = item.get("images", {}).get("jpg", {}).get("large_image_url")
-            if img_link:
-                backup_imgs.append(img_link)
-    except Exception:
-        pass
-
-    for i, scene in enumerate(script["scenes"]):
-        img_file = f"scene_{i}.jpg"
-        aud_file = f"scene_{i}.mp3"
-
-        short_prompt = scene["image_prompt"][:120]
-        encoded = urllib.parse.quote(short_prompt)
-        seed = random.randint(1, 99999)
-        
-        urls_to_try = [
-            f"https://pollinations.ai/p/{encoded}?width=720&height=1280&seed={seed}&nologo=true",
-            f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&seed={seed}&model=flux&nologo=true"
-        ]
-        if backup_imgs:
-            urls_to_try.append(random.choice(backup_imgs))
-
-        base_img = None
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
-
-        for url in urls_to_try:
-            try:
-                res = requests.get(url, headers=headers, timeout=25)
-                if res.status_code == 200 and len(res.content) > 2000:
-                    base_img = Image.open(BytesIO(res.content)).convert("RGB")
-                    base_img = base_img.resize((720, 1280))
-                    break
-            except Exception as e:
-                print(f"URL failed: {e}")
-
-        if base_img is None:
-            base_img = Image.new('RGB', (720, 1280), color=(25, 20, 45))
-
-        draw = ImageDraw.Draw(base_img)
-        narration_text = scene.get("narration", "")
-        wrapped_text = "\n".join(textwrap.wrap(narration_text, width=28))
-
-        draw.rectangle([(40, 880), (680, 1160)], fill=(0, 0, 0))
-        
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        except Exception:
-            font = ImageFont.load_default()
-
-        draw.multiline_text((60, 910), wrapped_text, fill=(255, 255, 0), font=font, spacing=8)
-        base_img.save(img_file, "JPEG")
-
-        await make_deep_voice(scene["narration"], aud_file)
-
-        audio_clip = AudioFileClip(aud_file)
-        image_clip = ImageClip(img_file).set_duration(audio_clip.duration + 0.3).set_audio(audio_clip)
-        clips.append(image_clip)
-
-    final_video = concatenate_videoclips(clips, method="compose")
+        url = f"https://image.pollinations.ai/prompt/{requests.utils.quote(clean_prompt)}"
+        response = requests.get(url, timeout=20)
+        if response.status_code == 200:
+            with open(img_file, "wb") as f:
+                f.write(response.content)
+        else:
+            raise Exception("API Error")
+    except Exception as e:
+        print(f"Image generation failed: {e}. Using fallback image.")
+        fallback_url = "https://image.pollinations.ai/prompt/epic%20anime%20hero%20wallpaper"
+        res = requests.get(fallback_url)
+        with open(img_file, "wb") as f:
+            f.write(res.content)
+            
+    base_clip = ImageClip(img_file).set_duration(total_duration)
+    zoom_clip = base_clip.resize(lambda t: 1 + 0.05 * (t / total_duration))
+    final_video = zoom_clip.set_audio(audio_clip)
+    
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
+    
     with open("Video_Title.txt", "w", encoding="utf-8") as f:
         f.write(script["title"])
+    
+    print("✅ वीडियो सफलतापूर्वक बन गया!")
 
 
 async def main():

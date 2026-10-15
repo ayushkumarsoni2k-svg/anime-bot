@@ -76,18 +76,17 @@ async def build_video(script):
     clips = []
     scenes = script.get("scenes", [])
     
-    # अगर स्क्रिप्ट में सीन्स न हों, तो टाइटल से डिफ़ॉल्ट सीन्स बना लो ताकि वीडियो लंबा और पूरा बने
     if not scenes:
         title = script.get("title", "Epic Anime Moment")
         scenes = [
-            {"narration": f"साल 2026 में एनीमी की दुनिया में भूचाल आ गया है!", "image_prompt": f"masterpiece 8k anime key visual, epic scene of {title}"},
-            {"narration": f"हर कोई इस जबरदस्त मोड़ को देखकर हैरान है!", "image_prompt": f"dramatic anime battle action, cinematic lighting, high quality"},
-            {"narration": f"क्या होने वाला है आगे? आइए जानते हैं इस शानदार सफर में।", "image_prompt": f"mysterious anime hero looking at horizon, beautiful sunset, highly detailed"}
+            {"narration": f"साल 2026 में एनीमी की दुनिया में भूचाल आ गया है!", "image_prompt": f"masterpiece 8k anime key visual, solo leveling, epic scene"},
+            {"narration": f"हर कोई इस जबरदस्त मोड़ को देखकर हैरान है!", "image_prompt": f"dramatic anime battle action, vibrant colors, cinematic"},
+            {"narration": f"क्या होने वाला है आगे? आइए जानते हैं इस शानदार सफर में।", "image_prompt": f"mysterious anime hero looking at horizon, beautiful sunset"}
         ]
     
     for i, scene in enumerate(scenes):
         narration_text = scene.get("narration", script.get("title", "Anime Trend"))
-        img_prompt = scene.get("image_prompt", f"masterpiece 8k anime style, epic moment")
+        img_prompt = scene.get("image_prompt", "masterpiece anime style, high quality")
         
         aud_file = f"scene_{i}.mp3"
         img_file = f"scene_{i}.jpg"
@@ -96,45 +95,51 @@ async def build_video(script):
         await make_deep_voice(narration_text, aud_file)
         audio_clip = AudioFileClip(aud_file)
         
-        # 2. Pollinations AI से शानदार एनिमी इमेज डाउनलोड करना
-        encoded_prompt = urllib.parse.quote(img_prompt)
-        seed_num = random.randint(1, 99999)
+        # 2. Pollinations AI से एनिमी इमेज डाउनलोड करने की पक्की कोशिश
+        encoded_prompt = urllib.parse.quote(img_prompt + ", high quality anime wallpaper, 4k")
+        seed_num = random.randint(1000, 99999)
         img_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=720&height=1280&seed={seed_num}&nologo=true"
         
-        try:
-            res = requests.get(img_url, timeout=25)
-            if res.status_code == 200:
-                with open(img_file, "wb") as f:
-                    f.write(res.content)
-            else:
-                raise Exception("API Error")
-        except Exception as e:
-            print(f"Image gen failed for scene {i}: {e}. Using fallback.")
-            fallback_url = f"https://image.pollinations.ai/prompt/epic%20anime%20hero%20wallpaper?width=720&height=1280"
-            res = requests.get(fallback_url)
+        image_downloaded = False
+        for attempt in range(3):  # 3 बार कोशिश करेगा ताकि डाउनलोड फेल न हो
+            try:
+                res = requests.get(img_url, timeout=30)
+                if res.status_code == 200 and len(res.content) > 2000:
+                    with open(img_file, "wb") as f:
+                        f.write(res.content)
+                    # जाँच करें कि फाइल सही इमेज है या नहीं
+                    with Image.open(img_file) as img_check:
+                        img_check.verify()
+                    image_downloaded = True
+                    break
+            except Exception as e:
+                print(f"Attempt {attempt+1} failed for scene {i}: {e}")
+                
+        # अगर तीनों बार में डाउनलोड न हो, तो दूसरा एनिमी बैकअप लिंक ट्राई करेगा (सादा पेज बिल्कुल नहीं आएगा)
+        if not image_downloaded:
+            backup_url = f"https://image.pollinations.ai/prompt/epic%20anime%20fighting%20scene%20wallpaper?width=720&height=1280&seed={seed_num}"
+            res = requests.get(backup_url, timeout=30)
             with open(img_file, "wb") as f:
                 f.write(res.content)
                 
-        # 3. इमेज को वीडियो क्लिप में बदलना (ऑडियो की लंबाई के हिसाब से)
         dur = audio_clip.duration + 0.3
         base_img = Image.open(img_file).convert("RGB")
         base_img = base_img.resize((720, 1280))
         base_img.save(img_file)
         
         img_clip = ImageClip(img_file).set_duration(dur)
-        # हल्का ज़ूम इफ़ेक्ट ताकि वीडियो में जान आ जाए
         zoom_clip = img_clip.resize(lambda t: 1 + 0.03 * (t / dur))
         video_scene = zoom_clip.set_audio(audio_clip)
         clips.append(video_scene)
         
-    # 4. सभी सीन्स को आपस में जोड़कर फाइनल वीडियो बनाना
     final_video = concatenate_videoclips(clips, method="compose")
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
     
     with open("Video_Title.txt", "w", encoding="utf-8") as f:
         f.write(script.get("title", "Trending Anime Short"))
         
-    print("✅ मल्टी-सीन शानदार वीडियो सफलतापूर्वक बन गया!")
+    print("✅ शानदार एनिमी वीडियो सफलतापूर्वक बन गया!")
+
 
 
 async def main():

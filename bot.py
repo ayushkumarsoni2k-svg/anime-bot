@@ -1,3 +1,7 @@
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 import os, json, random, asyncio, requests, urllib.parse, xml.etree.ElementTree as ET
 import edge_tts
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips

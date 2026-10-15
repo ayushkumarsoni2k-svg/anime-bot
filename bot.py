@@ -67,7 +67,17 @@ async def make_deep_voice(text, filename):
 
 async def build_video(script):
     audio_file = "voiceover.mp3"
-    await make_deep_voice(script["narration"], audio_file)
+    
+    # सेफ़्टी चेक ताकि narration न मिलने पर भी कभी KeyError न आए
+    narration_text = script.get("narration")
+    if not narration_text:
+        scenes = script.get("scenes", [])
+        if scenes and isinstance(scenes[0], dict):
+            narration_text = scenes[0].get("narration", script.get("title", "Amazing anime story"))
+        else:
+            narration_text = script.get("title", "Amazing anime short video")
+            
+    await make_deep_voice(narration_text, audio_file)
     
     audio_clip = AudioFileClip(audio_file)
     total_duration = audio_clip.duration
@@ -95,12 +105,14 @@ async def build_video(script):
     base_clip = ImageClip(img_file).set_duration(total_duration)
     zoom_clip = base_clip.resize(lambda t: 1 + 0.05 * (t / total_duration))
     final_video = zoom_clip.set_audio(audio_clip)
+    
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
     
     with open("Video_Title.txt", "w", encoding="utf-8") as f:
         f.write(title)
     
     print("✅ वीडियो सफलतापूर्वक बन गया!")
+
 
 async def main():
     script = get_unlimited_script()

@@ -95,14 +95,12 @@ async def build_video(script):
     base_clip = ImageClip(img_file).set_duration(total_duration)
     zoom_clip = base_clip.resize(lambda t: 1 + 0.05 * (t / total_duration))
     final_video = zoom_clip.set_audio(audio_clip)
-    
     final_video.write_videofile("Ready_Anime_Short.mp4", fps=24, codec="libx264", audio_codec="aac")
     
     with open("Video_Title.txt", "w", encoding="utf-8") as f:
-        f.write(script["title"])
+        f.write(title)
     
     print("✅ वीडियो सफलतापूर्वक बन गया!")
-
 
 async def main():
     script = get_unlimited_script()
